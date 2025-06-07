@@ -11,7 +11,7 @@ export interface IProduct {
 // Данные заказа: контактные данные + товары + сумма
 export interface IOrder {
     phone: string;
-    adress: string;
+    address: string;
     email: string;
     payment: TPayment;
     total: number;
@@ -25,7 +25,7 @@ export type TCategory = 'Дополнительное' | 'Другое' | 'Кн�
 // Способы оплаты
 export type TPayment = 'Card' | 'Cash';
 // Упрощённые данные заказа
-export type TOrderInfo = Pick<IOrder, 'adress' | 'email' | 'phone' | 'payment'>
+export type TOrderInfo = Pick<IOrder, 'address' | 'email' | 'phone' | 'payment'>
 // Ошибки формы
 export type FormErrors = Partial<Record<keyof TOrderInfo, string>>;
     
