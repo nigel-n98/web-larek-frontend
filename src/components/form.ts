@@ -1,4 +1,3 @@
-import { IOrder } from '../types';
 import { AppState } from './AppState';
 import { TPayment } from '../types';
 
