@@ -6,16 +6,21 @@ import { EventEmitter } from './components/base/events';
 import { IProduct } from './types';
 import { PreviewModal } from './components/PreviewModal';
 import { AppState } from './components/AppState';
-import { BasketModal } from './components/basket';
+import { Modal } from './components/modal';
+import { Basket } from './components/basket';
 import { Success } from './components/success';
 import { PaymentAndAddressForm, OrderContactsForm } from './components/form';
 import { Page } from './components/page';
+import { BasketItem } from './components/basketItem';
 
 const events = new EventEmitter();
 const api = new WebLarekApi();
 const appState = new AppState();
 const previewModal = new PreviewModal(events);
-const basketModal = new BasketModal(appState);
+const basketModal = new Modal();
+const basket = new Basket(appState, () => {
+	appState.events.emit('basket:order');
+});
 const success = new Success(appState);
 const page = new Page();
 const gallery = page.getGallery();
@@ -25,79 +30,102 @@ const orderContactsForm = new OrderContactsForm(appState);
 
 // Загружаем каталог с сервера
 api.getProducts()
-  .then((products: unknown) => {
-    if (Array.isArray(products)) {
-      appState.setCatalog(products); // теперь только обновляем модель
-    } else {
-      console.error('Ожидался массив продуктов, но пришло:', products);
-    }
-  })
-  .catch(error => {
-    console.error('Ошибка при загрузке каталога:', error);
-  });
+	.then((products: unknown) => {
+		if (Array.isArray(products)) {
+			appState.setCatalog(products); // обновляем модель
+		} else {
+			console.error('Ожидался массив продуктов, но пришло:', products);
+		}
+	})
+	.catch(error => {
+		console.error('Ошибка при загрузке каталога:', error);
+	});
 
+// Отображение каталога при обновлении
 appState.events.on('catalog:updated', (products: IProduct[]) => {
-  gallery.innerHTML = ''; // очищаем перед перерисовкой
-  products.forEach(product => {
-    const card = new Card(product, events);
-    gallery.append(card.render());
-  });
+	gallery.innerHTML = '';
+	products.forEach(product => {
+		const card = new Card(product, events);
+		gallery.append(card.render());
+	});
 });
 
-// Пользователь выбрал товар — сохраним в state
+// Пользователь выбрал товар
 events.on('card:select', (product: IProduct) => {
-  appState.setPreview(product);
+	appState.setPreview(product);
 });
 
+// Добавление в корзину
 events.on('basket:add', (product: IProduct) => {
-  appState.addToBasket(product);
-  console.log('Товар добавлен в корзину:', appState.getBasket());
+	appState.addToBasket(product);
+	console.log('Товар добавлен в корзину:', appState.getBasket());
 });
 
-// Подписка на изменение превью → показать модалку
-appState.events.on('preview:changed', (product: IProduct) => {
-  previewModal.show(product);
-});
-
-
-// Запуск первого шага оформления заказа (выбор оплаты + адрес)
-appState.events.on('basket:order', () => {
-  orderDetailsForm.render();
-});
-
-// После подтверждения первого шага — показать второй шаг (почта + телефон)
-appState.events.on('order:confirmed', () => {
-  orderContactsForm.render();
-});
-
-// После подтверждения второго шага — показать успешное оформление
-appState.events.on('contacts:confirmed', () => {
-    const order = appState.getOrder();
-
-    if (order) {
-        api.sendOrder(order)
-            .then((response) => {
-                console.log('Заказ отправлен:', response.id);
-
-                // ✅ Закрываем модалку корзины
-                basketModal.close();
-
-                // ✅ Открываем окно успеха
-                success.render();
-            })
-            .catch((error) => {
-                console.error('Ошибка при отправке заказа:', error);
-            });
-    } else {
-        console.error('Ошибка: заказ не сформирован');
-    }
-});
-
+// Обновление корзины
 appState.events.on('basket:update', () => {
-	basketModal.render();
-	page.setBasketCounter(appState.getBasket().length);
+	const basketItems = appState.getBasket();
+
+	const itemsElements = basketItems.map((product, index) =>
+		new BasketItem(product, appState.removeFromBasket.bind(appState), index).render()
+	);
+
+	const total = basketItems.reduce((sum, item) => sum + item.price, 0);
+
+	basket.list = itemsElements;
+	basket.setTotalPrice(total);
+	basket.setOrderButtonEnabled(basketItems.length > 0);
+
+	page.setBasketCounter(basketItems.length);
 });
 
+// Обновление превью
+appState.events.on('preview:changed', (product: IProduct) => {
+	previewModal.show(product);
+});
+
+// Оформление заказа — шаг 1
+appState.events.on('basket:order', () => {
+	orderDetailsForm.render();
+});
+
+// Подтверждение оплаты и адреса — шаг 2
+appState.events.on('order:confirmed', () => {
+	orderContactsForm.render();
+});
+
+// Подтверждение контактов — финал
+appState.events.on('contacts:confirmed', () => {
+	const order = appState.getOrder();
+
+	if (order) {
+		api.sendOrder(order)
+			.then(response => {
+				console.log('Заказ отправлен:', response.id);
+				basketModal.close(); // закрываем корзину
+				success.render(); // показываем успех
+			})
+			.catch(error => {
+				console.error('Ошибка при отправке заказа:', error);
+			});
+	} else {
+		console.error('Ошибка: заказ не сформирован');
+	}
+});
+
+// При клике на иконку корзины
 page.onBasketClick(() => {
-  basketModal.render();
+	const basketItems = appState.getBasket();
+
+	const itemsElements = basketItems.map((product, index) =>
+		new BasketItem(product, appState.removeFromBasket.bind(appState), index).render()
+	);
+
+	const total = basketItems.reduce((sum, item) => sum + item.price, 0);
+
+	basket.list = itemsElements;
+	basket.setTotalPrice(total);
+	basket.setOrderButtonEnabled(basketItems.length > 0);
+
+	basketModal.setContent(basket.content);
+	basketModal.open();
 });
