@@ -1,124 +1,113 @@
 import { AppState } from './AppState';
 import { TPayment } from '../types';
 
-export class PaymentAndAddressForm  {
+export class PaymentAndAddressForm {
 	private appState: AppState;
 	private container: HTMLElement;
+	private formNode: HTMLElement;
 
 	constructor(appState: AppState) {
 		this.appState = appState;
 		this.container = document.querySelector('#modal-container .modal__content') as HTMLElement;
+
+		const template = document.getElementById('order') as HTMLTemplateElement;
+		this.formNode = template.content.cloneNode(true) as HTMLElement;
+
+		this.init();
 	}
 
-	render() {
-		const template = document.getElementById('order') as HTMLTemplateElement;
-		const node = template.content.cloneNode(true) as HTMLElement;
-		const form = node.querySelector('form') as HTMLFormElement;
-		const buttons = node.querySelectorAll('.order__buttons .button');
+	private init() {
+		const form = this.formNode.querySelector('form') as HTMLFormElement;
+		const buttons = this.formNode.querySelectorAll('.order__buttons .button');
 		const addressInput = form.elements.namedItem('address') as HTMLInputElement;
 		const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
 		const errorContainer = form.querySelector('.form__errors') as HTMLElement;
 
-		// Выбор способа оплаты
-        buttons.forEach(buttonEl => {
-            const button = buttonEl as HTMLButtonElement;
+		this.appState.events.on('formErrors:updated', () => {
+			const errors = this.appState.getFormErrors();
+			const isValid = Object.keys(errors).length === 0;
 
-            button.addEventListener('click', () => {
-                buttons.forEach(btn => btn.classList.remove('button_alt-active'));
-                button.classList.add('button_alt-active');
-
-                const paymentMethod = button.name as TPayment;
-
-                this.appState.setOrder({
-                    ...this.appState.getOrder(),
-                    payment: paymentMethod,
-                });
-
-                checkValid();
-            });
-        });
-
-		// Ввод адреса
-		addressInput.addEventListener('input', () => {
-			this.appState.setOrder({
-				...this.appState.getOrder(),
-				address: addressInput.value.trim(),
-			});
-			checkValid();
+			submitButton.disabled = !isValid;
+			errorContainer.textContent = isValid ? '' : 'Введите адрес и выберите способ оплаты';
 		});
 
-		// Проверка валидности
-		const checkValid = () => {
-			const order = this.appState.getOrder();
-			const isValid = !!order.address && !!order.payment;
-			submitButton.disabled = !isValid;
+		buttons.forEach(buttonEl => {
+			const button = buttonEl as HTMLButtonElement;
+			button.addEventListener('click', () => {
+				buttons.forEach(btn => btn.classList.remove('button_alt-active'));
+				button.classList.add('button_alt-active');
 
-			if (!isValid) {
-				errorContainer.textContent = 'Введите адрес и выберите способ оплаты';
-			} else {
-				errorContainer.textContent = '';
-			}
-		};
+				const paymentMethod = button.name as TPayment;
+				this.appState.updateOrder('payment', paymentMethod); // ✅ заменено
+				this.appState.validateOrderInfo();
+			});
+		});
 
-		// Отправка формы
+		addressInput.addEventListener('input', () => {
+			this.appState.updateOrder('address', addressInput.value.trim()); // ✅ заменено
+			this.appState.validateOrderInfo();
+		});
+
 		form.addEventListener('submit', (e) => {
 			e.preventDefault();
-			this.appState.events.emit('order:confirmed'); // будет следующий шаг
+			this.appState.events.emit('order:confirmed');
 		});
+	}
 
-		this.container.innerHTML = ''; // очищаем модалку
-		this.container.appendChild(node);
+	render() {
+		this.container.innerHTML = '';
+		this.container.appendChild(this.formNode);
 	}
 }
 
 export class OrderContactsForm {
 	private appState: AppState;
 	private container: HTMLElement;
+	private formNode: HTMLElement;
 
 	constructor(appState: AppState) {
 		this.appState = appState;
 		this.container = document.querySelector('#modal-container .modal__content') as HTMLElement;
+
+		const template = document.getElementById('contacts') as HTMLTemplateElement;
+		this.formNode = template.content.cloneNode(true) as HTMLElement;
+
+		this.init();
 	}
 
-	render() {
-		const template = document.getElementById('contacts') as HTMLTemplateElement;
-		const node = template.content.cloneNode(true) as HTMLElement;
-		const form = node.querySelector('form') as HTMLFormElement;
+	private init() {
+		const form = this.formNode.querySelector('form') as HTMLFormElement;
 		const emailInput = form.elements.namedItem('email') as HTMLInputElement;
 		const phoneInput = form.elements.namedItem('phone') as HTMLInputElement;
 		const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
 		const errorContainer = form.querySelector('.form__errors') as HTMLElement;
 
-		const checkValid = () => {
-			const email = emailInput.value.trim();
-			const phone = phoneInput.value.trim();
-			const isValid = !!email && !!phone;
+		this.appState.events.on('formErrors:updated', () => {
+			const errors = this.appState.getFormErrors();
+			const isValid = Object.keys(errors).length === 0;
 
 			submitButton.disabled = !isValid;
+			errorContainer.textContent = isValid ? '' : 'Заполните email и телефон';
+		});
 
-			if (!isValid) {
-				errorContainer.textContent = 'Заполните email и телефон';
-			} else {
-				errorContainer.textContent = '';
-			}
-		};
+		emailInput.addEventListener('input', () => {
+			this.appState.updateOrder('email', emailInput.value.trim()); // ✅ заменено
+			this.appState.validateContacts();
+		});
 
-		emailInput.addEventListener('input', checkValid);
-		phoneInput.addEventListener('input', checkValid);
+		phoneInput.addEventListener('input', () => {
+			this.appState.updateOrder('phone', phoneInput.value.trim()); // ✅ заменено
+			this.appState.validateContacts();
+		});
 
 		form.addEventListener('submit', (e) => {
 			e.preventDefault();
-
-			this.appState.setOrder({
-				...this.appState.getOrder(),
-				email: emailInput.value.trim(),
-				phone: phoneInput.value.trim(),
-			});
-
 			this.appState.events.emit('contacts:confirmed');
 		});
+	}
 
+	render() {
 		this.container.innerHTML = '';
-		this.container.appendChild(node);
+		this.container.appendChild(this.formNode);
 	}
 }

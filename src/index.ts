@@ -16,7 +16,16 @@ import { BasketItem } from './components/basketItem';
 const events = new EventEmitter();
 const api = new WebLarekApi();
 const appState = new AppState();
-const previewModal = new PreviewModal(events);
+const previewModal = new PreviewModal((product: IProduct) => {
+	const basketItems = appState.getBasket();
+	const alreadyInBasket = basketItems.some(item => item.id === product.id);
+
+	if (alreadyInBasket) {
+		alert('Товар уже в корзине');
+	} else {
+		appState.addToBasket(product);
+	}
+});
 const basketModal = new Modal();
 const basket = new Basket(appState, () => {
 	appState.events.emit('basket:order');
@@ -25,14 +34,11 @@ const success = new Success(appState);
 const page = new Page();
 const gallery = page.getGallery();
 
-const orderDetailsForm = new PaymentAndAddressForm(appState);
-const orderContactsForm = new OrderContactsForm(appState);
-
-// Загружаем каталог с сервера
+// Загрузка каталога
 api.getProducts()
 	.then((products: unknown) => {
 		if (Array.isArray(products)) {
-			appState.setCatalog(products); // обновляем модель
+			appState.setCatalog(products);
 		} else {
 			console.error('Ожидался массив продуктов, но пришло:', products);
 		}
@@ -41,7 +47,7 @@ api.getProducts()
 		console.error('Ошибка при загрузке каталога:', error);
 	});
 
-// Отображение каталога при обновлении
+// Отрисовка каталога
 appState.events.on('catalog:updated', (products: IProduct[]) => {
 	gallery.innerHTML = '';
 	products.forEach(product => {
@@ -50,15 +56,15 @@ appState.events.on('catalog:updated', (products: IProduct[]) => {
 	});
 });
 
-// Пользователь выбрал товар
+// Выбор карточки
 events.on('card:select', (product: IProduct) => {
 	appState.setPreview(product);
+	previewModal.show(product);
 });
 
 // Добавление в корзину
 events.on('basket:add', (product: IProduct) => {
 	appState.addToBasket(product);
-	console.log('Товар добавлен в корзину:', appState.getBasket());
 });
 
 // Обновление корзины
@@ -69,10 +75,8 @@ appState.events.on('basket:update', () => {
 		new BasketItem(product, appState.removeFromBasket.bind(appState), index).render()
 	);
 
-	const total = basketItems.reduce((sum, item) => sum + item.price, 0);
-
 	basket.list = itemsElements;
-	basket.setTotalPrice(total);
+	basket.setTotalPrice(appState.getTotal());
 	basket.setOrderButtonEnabled(basketItems.length > 0);
 
 	page.setBasketCounter(basketItems.length);
@@ -83,49 +87,58 @@ appState.events.on('preview:changed', (product: IProduct) => {
 	previewModal.show(product);
 });
 
-// Оформление заказа — шаг 1
+// Шаг 1 — адрес и оплата
 appState.events.on('basket:order', () => {
+	const orderDetailsForm = new PaymentAndAddressForm(appState);
 	orderDetailsForm.render();
 });
 
-// Подтверждение оплаты и адреса — шаг 2
+// Шаг 2 — контакты
 appState.events.on('order:confirmed', () => {
+	const orderContactsForm = new OrderContactsForm(appState);
 	orderContactsForm.render();
 });
 
-// Подтверждение контактов — финал
+// Подтверждение заказа — финал
 appState.events.on('contacts:confirmed', () => {
-	const order = appState.getOrder();
+	const partialOrder = appState.getOrder();
 
-	if (order) {
-		api.sendOrder(order)
-			.then(response => {
-				console.log('Заказ отправлен:', response.id);
-				basketModal.close(); // закрываем корзину
-				success.render(); // показываем успех
-			})
-			.catch(error => {
-				console.error('Ошибка при отправке заказа:', error);
-			});
+	if (partialOrder) {
+		appState.setOrder({
+			address: partialOrder.address,
+			email: partialOrder.email,
+			phone: partialOrder.phone,
+			payment: partialOrder.payment,
+		});
+
+		const fullOrder = appState.getOrder();
+
+		if (fullOrder) {
+			api.sendOrder(fullOrder)
+				.then(response => {
+					console.log('Заказ отправлен:', response.id);
+					basketModal.close();
+					success.render();
+					appState.clearBasket();
+					appState.clearOrder();
+				})
+				.catch(error => {
+					console.error('Ошибка при отправке заказа:', error);
+				});
+		}
 	} else {
 		console.error('Ошибка: заказ не сформирован');
 	}
 });
 
-// При клике на иконку корзины
+// Обработка клика по иконке корзины — событие вместо прямого вызова
 page.onBasketClick(() => {
-	const basketItems = appState.getBasket();
+	events.emit('basket:open');
+});
 
-	const itemsElements = basketItems.map((product, index) =>
-		new BasketItem(product, appState.removeFromBasket.bind(appState), index).render()
-	);
-
-	const total = basketItems.reduce((sum, item) => sum + item.price, 0);
-
-	basket.list = itemsElements;
-	basket.setTotalPrice(total);
-	basket.setOrderButtonEnabled(basketItems.length > 0);
-
+// Логика открытия корзины через событие
+events.on('basket:open', () => {
+	appState.events.emit('basket:update');
 	basketModal.setContent(basket.content);
 	basketModal.open();
 });

@@ -40,14 +40,45 @@ export class AppState {
     this.basket = [];
     this.events.emit('basket:update');
     }
+    
+    clearOrder() {
+    this.order = null;
+}
 
-setOrder(data: TOrderInfo) {
-    this.order = {
-        ...data,
-        total: this.getTotal(),
-        items: this.getBasketIds(),
-    };
-    this.events.emit('order:updated');
+updateOrder<K extends keyof TOrderInfo>(key: K, value: TOrderInfo[K]) {
+    if (!this.order) {
+        this.order = {
+            address: '',
+            email: '',
+            phone: '',
+            payment: 'Card',
+            total: 0,
+            items: [],
+        };
+    }
+
+    (this.order as TOrderInfo)[key] = value;
+
+    this.setFormErrors({});
+
+    if (key === 'address' || key === 'payment') {
+        this.validateOrderInfo();
+    } else if (key === 'email' || key === 'phone') {
+        this.validateContacts();
+    }
+
+    this.events.emit('formErrors:updated');
+}
+
+setOrder(orderInfo: TOrderInfo) {
+	const items = this.basket.map(product => product.id);
+	const total = this.basket.reduce((sum, item) => sum + item.price, 0);
+
+	this.order = {
+		...orderInfo,
+		items,
+		total,
+	};
 }
 
     getOrder(): IOrder | null {
@@ -72,11 +103,49 @@ setOrder(data: TOrderInfo) {
         return this.preview;
     }
     
-getBasketIds(): string[] {
-    return this.basket.map(product => product.id);
+    getBasketIds(): string[] {
+        return this.basket.map(product => product.id);
+    }
+
+    getTotal(): number {
+        return this.basket.reduce((sum, product) => sum + product.price, 0);
+    }
+
+    //////////////////////////////////////////////////
+    validateOrderInfo(): boolean {
+    const order = this.order;
+    if (!order) return false;
+
+    const errors: FormErrors = {};
+
+    if (!order.address) {
+        errors.address = 'Введите адрес';
+    }
+
+    if (!order.payment) {
+        errors.payment = 'Выберите способ оплаты';
+    }
+
+    this.setFormErrors(errors);
+    return Object.keys(errors).length === 0;
 }
 
-getTotal(): number {
-    return this.basket.reduce((sum, product) => sum + product.price, 0);
+validateContacts(): boolean {
+    const order = this.order;
+    if (!order) return false;
+
+    const errors: FormErrors = {};
+
+    if (!order.email) {
+        errors.email = 'Введите email';
+    }
+
+    if (!order.phone) {
+        errors.phone = 'Введите телефон';
+    }
+
+    this.setFormErrors(errors);
+    return Object.keys(errors).length === 0;
 }
+
 }

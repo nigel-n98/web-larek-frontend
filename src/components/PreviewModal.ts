@@ -5,7 +5,9 @@ import { CDN_URL } from '../utils/constants';
 import { EventEmitter } from './base/events';
 
 export class PreviewModal extends Modal {
-  constructor(private events?: EventEmitter){
+  constructor(
+    private onAddToBasket: (product: IProduct) => void // <- новый параметр
+  ) {
     super();
   }
 
@@ -23,16 +25,14 @@ export class PreviewModal extends Modal {
     image.alt = product.title;
 
     const basketButton = node.querySelector('.card__button') as HTMLButtonElement;
-    if(basketButton && this.events) {
+
+    if (basketButton) {
       basketButton.addEventListener('click', () => {
-        this.events?.emit('basket:add', product);
-        this.close(); // можно оставить или убрать
+        this.onAddToBasket(product); // <- вызываем внешний обработчик
+        this.close();
       });
     }
 
-
     this.openWithContent(node);
   }
-
-  
 }
