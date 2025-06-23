@@ -12,6 +12,7 @@ import { Success } from './components/success';
 import { PaymentAndAddressForm, OrderContactsForm } from './components/form';
 import { Page } from './components/page';
 import { BasketItem } from './components/basketItem';
+import { TPayment } from './types';
 
 const events = new EventEmitter();
 const api = new WebLarekApi();
@@ -27,10 +28,12 @@ const previewModal = new PreviewModal((product: IProduct) => {
 	}
 });
 const basketModal = new Modal();
-const basket = new Basket(appState, () => {
-	appState.events.emit('basket:order');
+const basket = new Basket(
+	() => appState.events.emit('basket:order'),
+	(productId: string) => appState.removeFromBasket(productId)
+);
+const success = new Success(() => {
 });
-const success = new Success(appState);
 const page = new Page();
 const gallery = page.getGallery();
 
@@ -71,11 +74,7 @@ events.on('basket:add', (product: IProduct) => {
 appState.events.on('basket:update', () => {
 	const basketItems = appState.getBasket();
 
-	const itemsElements = basketItems.map((product, index) =>
-		new BasketItem(product, appState.removeFromBasket.bind(appState), index).render()
-	);
-
-	basket.list = itemsElements;
+	basket.setItems(basketItems);
 	basket.setTotalPrice(appState.getTotal());
 	basket.setOrderButtonEnabled(basketItems.length > 0);
 
@@ -87,16 +86,27 @@ appState.events.on('preview:changed', (product: IProduct) => {
 	previewModal.show(product);
 });
 
-// Шаг 1 — адрес и оплата
 appState.events.on('basket:order', () => {
-	const orderDetailsForm = new PaymentAndAddressForm(appState);
-	orderDetailsForm.render();
+	const form = new PaymentAndAddressForm({
+		getFormErrors: () => appState.getFormErrors(),
+		onAddressChange: value => appState.updateOrder('address', value),
+		onPaymentChange: value => appState.updateOrder('payment', value as TPayment),
+		onSubmit: () => appState.events.emit('order:confirmed'),
+		subscribeToErrors: cb => appState.events.on('formErrors:updated', cb)
+	});
+	form.render();
 });
 
-// Шаг 2 — контакты
+
 appState.events.on('order:confirmed', () => {
-	const orderContactsForm = new OrderContactsForm(appState);
-	orderContactsForm.render();
+	const form = new OrderContactsForm({
+		getFormErrors: () => appState.getFormErrors(),
+		onEmailChange: value => appState.updateOrder('email', value),
+		onPhoneChange: value => appState.updateOrder('phone', value),
+		onSubmit: () => appState.events.emit('contacts:confirmed'),
+		subscribeToErrors: cb => appState.events.on('formErrors:updated', cb)
+	});
+	form.render();
 });
 
 // Подтверждение заказа — финал
@@ -118,9 +128,13 @@ appState.events.on('contacts:confirmed', () => {
 				.then(response => {
 					console.log('Заказ отправлен:', response.id);
 					basketModal.close();
-					success.render();
+
+					const totalPrice = appState.getTotal(); // Presenter вычисляет и передаёт
+					success.render(totalPrice); // View ничего не считает
+
 					appState.clearBasket();
 					appState.clearOrder();
+					appState.events.emit('basket:update');
 				})
 				.catch(error => {
 					console.error('Ошибка при отправке заказа:', error);

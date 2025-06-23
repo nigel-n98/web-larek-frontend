@@ -29,3 +29,18 @@ export type TOrderInfo = Pick<IOrder, 'address' | 'email' | 'phone' | 'payment'>
 // Ошибки формы
 export type FormErrors = Partial<Record<keyof TOrderInfo, string>>;
     
+export type PaymentAndAddressFormParams = {
+	getFormErrors: () => Record<string, string>;
+	onAddressChange: (value: string) => void;
+	onPaymentChange: (value: string) => void;
+	onSubmit: () => void;
+	subscribeToErrors: (cb: () => void) => void;
+};
+
+export type OrderContactsFormParams = {
+	getFormErrors: () => Record<string, string>;
+	onEmailChange: (value: string) => void;
+	onPhoneChange: (value: string) => void;
+	onSubmit: () => void;
+	subscribeToErrors: (cb: () => void) => void;
+};

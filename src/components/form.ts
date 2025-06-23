@@ -1,18 +1,15 @@
 import { AppState } from './AppState';
 import { TPayment } from '../types';
+import { PaymentAndAddressFormParams, OrderContactsFormParams } from '../types';
 
 export class PaymentAndAddressForm {
-	private appState: AppState;
 	private container: HTMLElement;
 	private formNode: HTMLElement;
 
-	constructor(appState: AppState) {
-		this.appState = appState;
+	constructor(private params: PaymentAndAddressFormParams) {
 		this.container = document.querySelector('#modal-container .modal__content') as HTMLElement;
-
 		const template = document.getElementById('order') as HTMLTemplateElement;
 		this.formNode = template.content.cloneNode(true) as HTMLElement;
-
 		this.init();
 	}
 
@@ -23,12 +20,15 @@ export class PaymentAndAddressForm {
 		const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
 		const errorContainer = form.querySelector('.form__errors') as HTMLElement;
 
-		this.appState.events.on('formErrors:updated', () => {
-			const errors = this.appState.getFormErrors();
+		this.params.subscribeToErrors(() => {
+			const errors = this.params.getFormErrors();
 			const isValid = Object.keys(errors).length === 0;
-
 			submitButton.disabled = !isValid;
 			errorContainer.textContent = isValid ? '' : 'Введите адрес и выберите способ оплаты';
+		});
+
+		addressInput.addEventListener('input', () => {
+			this.params.onAddressChange(addressInput.value.trim());
 		});
 
 		buttons.forEach(buttonEl => {
@@ -36,21 +36,13 @@ export class PaymentAndAddressForm {
 			button.addEventListener('click', () => {
 				buttons.forEach(btn => btn.classList.remove('button_alt-active'));
 				button.classList.add('button_alt-active');
-
-				const paymentMethod = button.name as TPayment;
-				this.appState.updateOrder('payment', paymentMethod); // ✅ заменено
-				this.appState.validateOrderInfo();
+				this.params.onPaymentChange(button.name as TPayment);
 			});
-		});
-
-		addressInput.addEventListener('input', () => {
-			this.appState.updateOrder('address', addressInput.value.trim()); // ✅ заменено
-			this.appState.validateOrderInfo();
 		});
 
 		form.addEventListener('submit', (e) => {
 			e.preventDefault();
-			this.appState.events.emit('order:confirmed');
+			this.params.onSubmit();
 		});
 	}
 
@@ -61,17 +53,13 @@ export class PaymentAndAddressForm {
 }
 
 export class OrderContactsForm {
-	private appState: AppState;
 	private container: HTMLElement;
 	private formNode: HTMLElement;
 
-	constructor(appState: AppState) {
-		this.appState = appState;
+	constructor(private params: OrderContactsFormParams) {
 		this.container = document.querySelector('#modal-container .modal__content') as HTMLElement;
-
 		const template = document.getElementById('contacts') as HTMLTemplateElement;
 		this.formNode = template.content.cloneNode(true) as HTMLElement;
-
 		this.init();
 	}
 
@@ -82,27 +70,24 @@ export class OrderContactsForm {
 		const submitButton = form.querySelector('button[type="submit"]') as HTMLButtonElement;
 		const errorContainer = form.querySelector('.form__errors') as HTMLElement;
 
-		this.appState.events.on('formErrors:updated', () => {
-			const errors = this.appState.getFormErrors();
+		this.params.subscribeToErrors(() => {
+			const errors = this.params.getFormErrors();
 			const isValid = Object.keys(errors).length === 0;
-
 			submitButton.disabled = !isValid;
 			errorContainer.textContent = isValid ? '' : 'Заполните email и телефон';
 		});
 
 		emailInput.addEventListener('input', () => {
-			this.appState.updateOrder('email', emailInput.value.trim()); // ✅ заменено
-			this.appState.validateContacts();
+			this.params.onEmailChange(emailInput.value.trim());
 		});
 
 		phoneInput.addEventListener('input', () => {
-			this.appState.updateOrder('phone', phoneInput.value.trim()); // ✅ заменено
-			this.appState.validateContacts();
+			this.params.onPhoneChange(phoneInput.value.trim());
 		});
 
 		form.addEventListener('submit', (e) => {
 			e.preventDefault();
-			this.appState.events.emit('contacts:confirmed');
+			this.params.onSubmit();
 		});
 	}
 

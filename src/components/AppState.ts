@@ -129,7 +129,7 @@ setOrder(orderInfo: TOrderInfo) {
     this.setFormErrors(errors);
     return Object.keys(errors).length === 0;
 }
-
+///////////////////////////////////
 validateContacts(): boolean {
     const order = this.order;
     if (!order) return false;

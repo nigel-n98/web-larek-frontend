@@ -1,36 +1,67 @@
 // components/PreviewModal.ts
 import { Modal } from './modal';
 import { IProduct } from '../types';
-import { CDN_URL } from '../utils/constants';
-import { EventEmitter } from './base/events';
+import { CDN_URL, CATEGORY_CLASS_MAP } from '../utils/constants';
 
 export class PreviewModal extends Modal {
   constructor(
-    private onAddToBasket: (product: IProduct) => void // <- новый параметр
+    private onAddToBasket: (product: IProduct) => void
   ) {
     super();
   }
 
   show(product: IProduct) {
     const template = document.getElementById('card-preview') as HTMLTemplateElement;
+    if (!template) throw new Error('Шаблон card-preview не найден');
+    
     const node = template.content.cloneNode(true) as HTMLElement;
+    const cardElement = node.querySelector('.card') as HTMLElement;
 
-    (node.querySelector('.card__category') as HTMLElement).textContent = product.category;
-    (node.querySelector('.card__title') as HTMLElement).textContent = product.title;
-    (node.querySelector('.card__text') as HTMLElement).textContent = product.description;
-    (node.querySelector('.card__price') as HTMLElement).textContent = `${product.price} синапсов`;
+    // Обработка категории
+    const categoryElement = cardElement.querySelector('.card__category');
+    if (categoryElement) {
+      categoryElement.textContent = product.category || 'без категории';
 
-    const image = node.querySelector('.card__image') as HTMLImageElement;
-    image.src = `${CDN_URL}/${product.image}`;
-    image.alt = product.title;
-
-    const basketButton = node.querySelector('.card__button') as HTMLButtonElement;
-
-    if (basketButton) {
-      basketButton.addEventListener('click', () => {
-        this.onAddToBasket(product); // <- вызываем внешний обработчик
-        this.close();
+      // Удаляем все возможные предыдущие классы категорий
+      Object.values(CATEGORY_CLASS_MAP).forEach(className => {
+        categoryElement.classList.remove(className);
       });
+
+      // Добавляем нужный класс категории
+      const normalizedCategory = product.category?.toLowerCase()?.trim();
+      const categoryClass = CATEGORY_CLASS_MAP[normalizedCategory];
+      if (categoryClass) {
+        categoryElement.classList.add(categoryClass);
+      }
+    }
+
+    // Заполняем остальные данные
+    (cardElement.querySelector('.card__title') as HTMLElement).textContent = product.title;
+    (cardElement.querySelector('.card__text') as HTMLElement).textContent = product.description || '';
+
+    const isPriceless = product.price == null || product.price === 0;
+    const priceElement = cardElement.querySelector('.card__price') as HTMLElement;
+    priceElement.textContent = isPriceless ? 'Бесценно' : `${product.price} синапсов`;
+
+    const image = cardElement.querySelector('.card__image') as HTMLImageElement;
+    if (image) {
+      image.src = `${CDN_URL}/${product.image}`;
+      image.alt = product.title;
+    }
+
+    const basketButton = cardElement.querySelector('.card__button') as HTMLButtonElement;
+    if (basketButton) {
+      if (isPriceless) {
+        basketButton.disabled = true;
+        basketButton.textContent = 'Нельзя купить';
+      } else {
+        basketButton.disabled = false;
+        basketButton.textContent = 'В корзину';
+        basketButton.addEventListener('click', () => {
+          this.onAddToBasket(product);
+          this.close();
+        });
+      }
     }
 
     this.openWithContent(node);

@@ -1,5 +1,4 @@
 import { IProduct } from '../types';
-import { AppState } from './AppState';
 import { BasketItem } from './basketItem';
 
 export class Basket {
@@ -8,10 +7,7 @@ export class Basket {
 	private orderButton: HTMLButtonElement;
 	private element: HTMLElement;
 
-	constructor(
-		private appState: AppState,
-		private onOrder: () => void
-	) {
+	constructor(private onOrder: () => void, private onRemove: (productId: string) => void) {
 		const template = document.getElementById('basket') as HTMLTemplateElement;
 		const content = template.content.cloneNode(true) as HTMLElement;
 
@@ -31,18 +27,20 @@ export class Basket {
 		return this.element;
 	}
 
-	/** Устанавливает список элементов корзины */
-	set list(items: HTMLElement[]) {
+	setItems(items: IProduct[]) {
 		this.listElement.innerHTML = '';
-		this.listElement.append(...items);
+
+		const elements = items.map((product, index) =>
+			new BasketItem(product, this.onRemove, index).render()
+		);
+
+		this.listElement.append(...elements);
 	}
 
-	/** Устанавливает итоговую цену */
 	setTotalPrice(price: number) {
 		this.totalPriceEl.textContent = `${price} синапсов`;
 	}
 
-	/** Активирует или деактивирует кнопку заказа */
 	setOrderButtonEnabled(enabled: boolean) {
 		this.orderButton.disabled = !enabled;
 	}

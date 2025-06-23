@@ -5,6 +5,10 @@ export class BasketItem {
 
   constructor(product: IProduct, onRemove: (id: string) => void, index: number) {
     const template = document.getElementById('card-basket') as HTMLTemplateElement;
+    if (!template?.content.firstElementChild) {
+      throw new Error('Template or its content is empty');
+    }
+    
     const item = template.content.firstElementChild.cloneNode(true) as HTMLElement;
 
     (item.querySelector('.basket__item-index') as HTMLElement).textContent = `${index + 1}`;
