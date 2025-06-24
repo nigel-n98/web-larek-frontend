@@ -1,13 +1,10 @@
-import { IProduct } from '../types';
-import { BasketItem } from './basketItem';
-
 export class Basket {
 	private listElement: HTMLElement;
 	private totalPriceEl: HTMLElement;
 	private orderButton: HTMLButtonElement;
 	private element: HTMLElement;
 
-	constructor(private onOrder: () => void, private onRemove: (productId: string) => void) {
+	constructor(private onOrder: () => void) { // 🛠 убрали onRemove
 		const template = document.getElementById('basket') as HTMLTemplateElement;
 		const content = template.content.cloneNode(true) as HTMLElement;
 
@@ -27,14 +24,8 @@ export class Basket {
 		return this.element;
 	}
 
-	setItems(items: IProduct[]) {
-		this.listElement.innerHTML = '';
-
-		const elements = items.map((product, index) =>
-			new BasketItem(product, this.onRemove, index).render()
-		);
-
-		this.listElement.append(...elements);
+	setItems(itemElements: HTMLElement[]) {
+		this.listElement.replaceChildren(...itemElements);
 	}
 
 	setTotalPrice(price: number) {

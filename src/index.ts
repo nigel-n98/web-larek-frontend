@@ -12,30 +12,31 @@ import { Success } from './components/success';
 import { PaymentAndAddressForm, OrderContactsForm } from './components/form';
 import { Page } from './components/page';
 import { BasketItem } from './components/basketItem';
-import { TPayment } from './types';
+import { TPayment, IOrder } from './types';
 
 const events = new EventEmitter();
 const api = new WebLarekApi();
-const appState = new AppState();
-const previewModal = new PreviewModal((product: IProduct) => {
-	const basketItems = appState.getBasket();
-	const alreadyInBasket = basketItems.some(item => item.id === product.id);
-
-	if (alreadyInBasket) {
-		alert('Товар уже в корзине');
-	} else {
-		appState.addToBasket(product);
-	}
-});
+const appState = new AppState(events);
+const previewModal = new PreviewModal(events);
 const basketModal = new Modal();
-const basket = new Basket(
-	() => appState.events.emit('basket:order'),
-	(productId: string) => appState.removeFromBasket(productId)
-);
-const success = new Success(() => {
-});
+const basket = new Basket(() => appState.events.emit('basket:order'));
+const success = new Success(() => {});
 const page = new Page();
 const gallery = page.getGallery();
+
+const orderForm = new PaymentAndAddressForm({
+	getFormErrors: () => appState.getFormErrors(),
+	onAddressChange: value => appState.updateOrder('address', value),
+	onPaymentChange: value => appState.updateOrder('payment', value as TPayment),
+	onSubmit: () => appState.events.emit('order:confirmed')
+});
+
+const contactsForm = new OrderContactsForm({
+	getFormErrors: () => appState.getFormErrors(),
+	onEmailChange: value => appState.updateOrder('email', value),
+	onPhoneChange: value => appState.updateOrder('phone', value),
+	onSubmit: () => appState.events.emit('contacts:confirmed')
+});
 
 // Загрузка каталога
 api.getProducts()
@@ -62,19 +63,34 @@ appState.events.on('catalog:updated', (products: IProduct[]) => {
 // Выбор карточки
 events.on('card:select', (product: IProduct) => {
 	appState.setPreview(product);
-	previewModal.show(product);
+	const alreadyInBasket = appState.getBasket().some(item => item.id === product.id);
+	previewModal.show(product, alreadyInBasket);
 });
 
-// Добавление в корзину
 events.on('basket:add', (product: IProduct) => {
-	appState.addToBasket(product);
+	const basketItems = appState.getBasket();
+	const alreadyInBasket = basketItems.some(item => item.id === product.id);
+
+	if (alreadyInBasket) {
+		alert('Товар уже в корзине');
+	} else {
+		appState.addToBasket(product);
+	}
+});
+
+events.on('basket:item:remove', (data: { id: string }) => {
+	appState.removeFromBasket(data.id);
 });
 
 // Обновление корзины
 appState.events.on('basket:update', () => {
 	const basketItems = appState.getBasket();
 
-	basket.setItems(basketItems);
+	const basketItemElements = basketItems.map((product, index) =>
+		new BasketItem(product, index, events).render()
+	);
+
+	basket.setItems(basketItemElements);
 	basket.setTotalPrice(appState.getTotal());
 	basket.setOrderButtonEnabled(basketItems.length > 0);
 
@@ -83,74 +99,59 @@ appState.events.on('basket:update', () => {
 
 // Обновление превью
 appState.events.on('preview:changed', (product: IProduct) => {
-	previewModal.show(product);
+	const alreadyInBasket = appState.getBasket().some(item => item.id === product.id);
+	previewModal.show(product, alreadyInBasket);
 });
 
 appState.events.on('basket:order', () => {
-	const form = new PaymentAndAddressForm({
-		getFormErrors: () => appState.getFormErrors(),
-		onAddressChange: value => appState.updateOrder('address', value),
-		onPaymentChange: value => appState.updateOrder('payment', value as TPayment),
-		onSubmit: () => appState.events.emit('order:confirmed'),
-		subscribeToErrors: cb => appState.events.on('formErrors:updated', cb)
-	});
-	form.render();
+	orderForm.render();
+	const handleFormErrors = () => orderForm.updateErrors();
+	appState.events.on('formErrors:updated', handleFormErrors);
+	handleFormErrors();
 });
-
 
 appState.events.on('order:confirmed', () => {
-	const form = new OrderContactsForm({
-		getFormErrors: () => appState.getFormErrors(),
-		onEmailChange: value => appState.updateOrder('email', value),
-		onPhoneChange: value => appState.updateOrder('phone', value),
-		onSubmit: () => appState.events.emit('contacts:confirmed'),
-		subscribeToErrors: cb => appState.events.on('formErrors:updated', cb)
-	});
-	form.render();
+	contactsForm.render();
+	const handleFormErrors = () => contactsForm.updateErrors();
+	appState.events.on('formErrors:updated', handleFormErrors);
+	handleFormErrors();
 });
 
-// Подтверждение заказа — финал
 appState.events.on('contacts:confirmed', () => {
-	const partialOrder = appState.getOrder();
+    const orderInfo = appState.getOrder();
+    const basketItems = appState.getBasket();
 
-	if (partialOrder) {
-		appState.setOrder({
-			address: partialOrder.address,
-			email: partialOrder.email,
-			phone: partialOrder.phone,
-			payment: partialOrder.payment,
-		});
+    if (!orderInfo || basketItems.length === 0) {
+        console.error('Ошибка: заказ не сформирован');
+        return;
+    }
 
-		const fullOrder = appState.getOrder();
+    const finalOrder: IOrder = {
+        ...orderInfo,
+        items: basketItems.map(item => item.id),
+        total: appState.getTotal(),
+    };
 
-		if (fullOrder) {
-			api.sendOrder(fullOrder)
-				.then(response => {
-					console.log('Заказ отправлен:', response.id);
-					basketModal.close();
+api.sendOrder(finalOrder)
+    .then(response => {
+        console.log('Заказ отправлен:', response.id);
+        basketModal.close();
+        success.render(finalOrder.total);
 
-					const totalPrice = appState.getTotal(); // Presenter вычисляет и передаёт
-					success.render(totalPrice); // View ничего не считает
+        appState.clearBasket();
+        appState.clearOrder();
+        appState.events.emit('basket:update');
 
-					appState.clearBasket();
-					appState.clearOrder();
-					appState.events.emit('basket:update');
-				})
-				.catch(error => {
-					console.error('Ошибка при отправке заказа:', error);
-				});
-		}
-	} else {
-		console.error('Ошибка: заказ не сформирован');
-	}
+        // Добавьте это:
+        orderForm.reset();
+        contactsForm.reset();
+    });
 });
 
-// Обработка клика по иконке корзины — событие вместо прямого вызова
 page.onBasketClick(() => {
 	events.emit('basket:open');
 });
 
-// Логика открытия корзины через событие
 events.on('basket:open', () => {
 	appState.events.emit('basket:update');
 	basketModal.setContent(basket.content);

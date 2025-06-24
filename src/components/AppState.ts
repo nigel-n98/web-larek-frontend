@@ -7,7 +7,11 @@ export class AppState {
     private order: IOrder | null = null;
     private formErrors: FormErrors = {};
     private preview: IProduct | null = null; //////////////////////////////////////
-    public events: EventEmitter = new EventEmitter();
+    public events: EventEmitter;
+
+    constructor(events: EventEmitter) {
+        this.events = events;
+    }
 
     setCatalog(items: IProduct[]) {
         this.catalog = items;
@@ -68,17 +72,6 @@ updateOrder<K extends keyof TOrderInfo>(key: K, value: TOrderInfo[K]) {
     }
 
     this.events.emit('formErrors:updated');
-}
-
-setOrder(orderInfo: TOrderInfo) {
-	const items = this.basket.map(product => product.id);
-	const total = this.basket.reduce((sum, item) => sum + item.price, 0);
-
-	this.order = {
-		...orderInfo,
-		items,
-		total,
-	};
 }
 
     getOrder(): IOrder | null {
