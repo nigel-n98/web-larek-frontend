@@ -47,6 +47,7 @@ export class AppState {
     
     clearOrder() {
     this.order = null;
+    this.setFormErrors({});
 }
 
 updateOrder<K extends keyof TOrderInfo>(key: K, value: TOrderInfo[K]) {
@@ -55,7 +56,7 @@ updateOrder<K extends keyof TOrderInfo>(key: K, value: TOrderInfo[K]) {
             address: '',
             email: '',
             phone: '',
-            payment: 'Card',
+            payment: '',
             total: 0,
             items: [],
         };
@@ -71,7 +72,8 @@ updateOrder<K extends keyof TOrderInfo>(key: K, value: TOrderInfo[K]) {
         this.validateContacts();
     }
 
-    // this.events.emit('formErrors:updated');
+    // >>> ДОБАВЬТЕ ЭТО: всегда эмитим обновление
+    this.events.emit('order:validate', this.getFormErrors());
 }
 
     getOrder(): IOrder | null {

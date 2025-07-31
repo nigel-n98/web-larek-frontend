@@ -59,6 +59,7 @@ public updateErrors(errors: FormErrors) {
     this.paymentButtons.forEach(btn => btn.classList.remove('button_alt-active'));
     this.submitButton.disabled = true;
     this.errorContainer.textContent = '';
+	this.params.onPaymentChange('');
 }
 }
 
@@ -115,5 +116,6 @@ public updateErrors(errors: FormErrors) {
     this.phoneInput.value = '';
     this.submitButton.disabled = true;
     this.errorContainer.textContent = '';
+	
 }
 }

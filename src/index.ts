@@ -42,6 +42,7 @@ const contactsForm = new OrderContactsForm({
 });
 
 modal.onClose(() => {
+	appState.clearOrder();
 	orderForm.reset();
 	contactsForm.reset();
 });
@@ -128,6 +129,7 @@ events.on('order:validate', (errors: FormErrors) => {
 appState.events.on('order:confirmed', () => {
 	contactsForm.render();
 	appState.events.emit('order:validate', appState.getFormErrors());
+	appState.validateContacts();
 });
 
 appState.events.on('contacts:confirmed', () => {
