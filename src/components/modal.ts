@@ -4,6 +4,7 @@ export class Modal {
   protected container: HTMLElement;
   protected content: HTMLElement;
   protected closeButtons: NodeListOf<HTMLButtonElement>;
+  private closeCallbacks: Array<() => void> = []; // 👈 сюда подписчики
 
   constructor(selector: string = '.modal') {
     this.container = document.querySelector(selector) as HTMLElement;
@@ -13,30 +14,29 @@ export class Modal {
     this.closeButtons.forEach(btn => {
       btn.addEventListener('click', () => this.close());
     });
-    
+
     this.container.addEventListener('click', (e) => {
       if (e.target === this.container) {
         this.close();
       }
     });
 
-    // Обработка ESC
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && this.open) {
         this.close();
       }
     });
-
   }
 
   open() {
     this.container.classList.add('modal_active');
-    document.body.classList.add('modal-open');  // блокируем прокрутку
+    document.body.classList.add('modal-open');
   }
 
   close() {
     this.container.classList.remove('modal_active');
-    document.body.classList.remove('modal-open'); // восстанавливаем прокрутку
+    document.body.classList.remove('modal-open');
+    this.closeCallbacks.forEach(cb => cb()); // 👈 вызываем колбэки
   }
 
   setContent(node: HTMLElement) {
@@ -47,5 +47,9 @@ export class Modal {
   openWithContent(node: HTMLElement) {
     this.setContent(node);
     this.open();
+  }
+
+  onClose(callback: () => void) { // 👈 метод для подписки
+    this.closeCallbacks.push(callback);
   }
 }

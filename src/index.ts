@@ -4,7 +4,7 @@ import { WebLarekApi } from './components/WebLarekApi';
 import { Card } from './components/card';
 import { EventEmitter } from './components/base/events';
 import { IProduct } from './types';
-import { PreviewModal } from './components/PreviewModal';
+import { PreviewCard } from './components/PreviewCard';
 import { AppState } from './components/AppState';
 import { Modal } from './components/modal';
 import { Basket } from './components/basket';
@@ -12,17 +12,20 @@ import { Success } from './components/success';
 import { PaymentAndAddressForm, OrderContactsForm } from './components/form';
 import { Page } from './components/page';
 import { BasketItem } from './components/basketItem';
-import { TPayment, IOrder } from './types';
+import { TPayment, IOrder, FormErrors } from './types';
+
 
 const events = new EventEmitter();
 const api = new WebLarekApi();
 const appState = new AppState(events);
-const previewModal = new PreviewModal(events);
 const basketModal = new Modal();
 const basket = new Basket(() => appState.events.emit('basket:order'));
-const success = new Success(() => {});
+const success = new Success(() => {
+	modal.close();
+});
 const page = new Page();
 const gallery = page.getGallery();
+const modal = new Modal();
 
 const orderForm = new PaymentAndAddressForm({
 	getFormErrors: () => appState.getFormErrors(),
@@ -36,6 +39,11 @@ const contactsForm = new OrderContactsForm({
 	onEmailChange: value => appState.updateOrder('email', value),
 	onPhoneChange: value => appState.updateOrder('phone', value),
 	onSubmit: () => appState.events.emit('contacts:confirmed')
+});
+
+modal.onClose(() => {
+	orderForm.reset();
+	contactsForm.reset();
 });
 
 // Загрузка каталога
@@ -62,9 +70,11 @@ appState.events.on('catalog:updated', (products: IProduct[]) => {
 
 // Выбор карточки
 events.on('card:select', (product: IProduct) => {
-	appState.setPreview(product);
-	const alreadyInBasket = appState.getBasket().some(item => item.id === product.id);
-	previewModal.show(product, alreadyInBasket);
+  appState.setPreview(product);
+  const inBasket = appState.getBasketIds().includes(product.id);
+  const previewCard = new PreviewCard(product, inBasket, events);
+  modal.setContent(previewCard.render());
+  modal.open();
 });
 
 events.on('basket:add', (product: IProduct) => {
@@ -75,6 +85,7 @@ events.on('basket:add', (product: IProduct) => {
 		alert('Товар уже в корзине');
 	} else {
 		appState.addToBasket(product);
+		modal.close();
 	}
 });
 
@@ -99,22 +110,24 @@ appState.events.on('basket:update', () => {
 
 // Обновление превью
 appState.events.on('preview:changed', (product: IProduct) => {
-	const alreadyInBasket = appState.getBasket().some(item => item.id === product.id);
-	previewModal.show(product, alreadyInBasket);
+	const inBasket = appState.getBasketIds().includes(product.id);
+	const previewCard = new PreviewCard(product, inBasket, events);
+	modal.setContent(previewCard.render());
+	modal.open();
 });
 
 appState.events.on('basket:order', () => {
 	orderForm.render();
-	const handleFormErrors = () => orderForm.updateErrors();
-	appState.events.on('formErrors:updated', handleFormErrors);
-	handleFormErrors();
+});
+
+events.on('order:validate', (errors: FormErrors) => {
+	orderForm.updateErrors(errors);
+	contactsForm.updateErrors(errors);
 });
 
 appState.events.on('order:confirmed', () => {
 	contactsForm.render();
-	const handleFormErrors = () => contactsForm.updateErrors();
-	appState.events.on('formErrors:updated', handleFormErrors);
-	handleFormErrors();
+	appState.events.emit('order:validate', appState.getFormErrors());
 });
 
 appState.events.on('contacts:confirmed', () => {
@@ -136,15 +149,19 @@ api.sendOrder(finalOrder)
     .then(response => {
         console.log('Заказ отправлен:', response.id);
         basketModal.close();
-        success.render(finalOrder.total);
+        
+        const successContent = success.render(finalOrder.total);
+        modal.openWithContent(successContent);
 
         appState.clearBasket();
         appState.clearOrder();
         appState.events.emit('basket:update');
 
-        // Добавьте это:
         orderForm.reset();
         contactsForm.reset();
+    })
+    .catch(error => {
+        console.error('Ошибка при отправке заказа:', error);
     });
 });
 

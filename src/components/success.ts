@@ -1,30 +1,33 @@
-import { Modal } from './modal';
-
-export class Success extends Modal {
+export class Success {
 	private template: HTMLTemplateElement;
-	private closeButton: HTMLButtonElement | null = null;
+	private element: HTMLElement;
+	private description: HTMLElement | null;
+	private closeButton: HTMLButtonElement | null;
 
 	constructor(private onClose: () => void) {
-		super('.modal');
 		this.template = document.getElementById('success') as HTMLTemplateElement;
-	}
 
-	render(totalPrice: number) {
-		const node = this.template.content.cloneNode(true) as HTMLElement;
+		// Клонируем шаблон один раз
+		this.element = this.template.content.firstElementChild!.cloneNode(true) as HTMLElement;
 
-		const description = node.querySelector('.order-success__description');
-		if (description) {
-			description.textContent = `Списано ${totalPrice} синапсов`;
-		}
+		this.description = this.element.querySelector('.order-success__description');
+		this.closeButton = this.element.querySelector('.order-success__close');
 
-		this.closeButton = node.querySelector('.order-success__close');
+		// Назначаем обработчик на кнопку закрытия
 		if (this.closeButton) {
 			this.closeButton.addEventListener('click', () => {
-				this.close();
-				this.onClose();
+				this.onClose(); // Закрытие передано извне
 			});
 		}
+	}
 
-		this.openWithContent(node);
+	/**
+	 * Метод подставляет сумму в DOM и возвращает готовый элемент
+	 */
+	render(totalPrice: number): HTMLElement {
+		if (this.description) {
+			this.description.textContent = `Списано ${totalPrice} синапсов`;
+		}
+		return this.element;
 	}
 }

@@ -71,7 +71,7 @@ updateOrder<K extends keyof TOrderInfo>(key: K, value: TOrderInfo[K]) {
         this.validateContacts();
     }
 
-    this.events.emit('formErrors:updated');
+    // this.events.emit('formErrors:updated');
 }
 
     getOrder(): IOrder | null {
@@ -106,39 +106,46 @@ updateOrder<K extends keyof TOrderInfo>(key: K, value: TOrderInfo[K]) {
 
     //////////////////////////////////////////////////
     validateOrderInfo(): boolean {
-    const order = this.order;
-    if (!order) return false;
+        const order = this.order;
+        if (!order) return false;
 
-    const errors: FormErrors = {};
+        const errors: FormErrors = {};
 
-    if (!order.address) {
-        errors.address = 'Введите адрес';
+        if (!order.address) {
+            errors.address = 'Введите адрес';
+        }
+
+        if (!order.payment) {
+            errors.payment = 'Выберите способ оплаты';
+        }
+
+        this.setFormErrors(errors);
+
+
+        this.events.emit('order:validate', errors);
+
+        return Object.keys(errors).length === 0;
     }
+    ///////////////////////////////////
+    validateContacts(): boolean {
+        const order = this.order;
+        if (!order) return false;
 
-    if (!order.payment) {
-        errors.payment = 'Выберите способ оплаты';
+        const errors: FormErrors = {};
+
+        if (!order.email) {
+            errors.email = 'Введите email';
+        }
+
+        if (!order.phone) {
+            errors.phone = 'Введите телефон';
+        }
+
+        this.setFormErrors(errors);
+
+        this.events.emit('order:validate', errors);
+
+        return Object.keys(errors).length === 0;
     }
-
-    this.setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-}
-///////////////////////////////////
-validateContacts(): boolean {
-    const order = this.order;
-    if (!order) return false;
-
-    const errors: FormErrors = {};
-
-    if (!order.email) {
-        errors.email = 'Введите email';
-    }
-
-    if (!order.phone) {
-        errors.phone = 'Введите телефон';
-    }
-
-    this.setFormErrors(errors);
-    return Object.keys(errors).length === 0;
-}
 
 }

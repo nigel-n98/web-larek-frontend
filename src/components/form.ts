@@ -1,4 +1,4 @@
-import { TPayment } from '../types';
+import { TPayment, FormErrors } from '../types';
 import { PaymentAndAddressFormParams, OrderContactsFormParams } from '../types';
 
 export class PaymentAndAddressForm {
@@ -43,12 +43,11 @@ export class PaymentAndAddressForm {
 		});
 	}
 
-	public updateErrors() {
-		const errors = this.params.getFormErrors();
-		const isValid = Object.keys(errors).length === 0;
-		this.submitButton.disabled = !isValid;
-		this.errorContainer.textContent = isValid ? '' : 'Введите адрес и выберите способ оплаты';
-	}
+public updateErrors(errors: FormErrors) {
+	const isValid = !errors.address && !errors.payment;
+	this.submitButton.disabled = !isValid;
+	this.errorContainer.textContent = isValid ? '' : 'Введите адрес и выберите способ оплаты';
+}
 
 	public render() {
 		this.container.innerHTML = '';
@@ -101,12 +100,11 @@ export class OrderContactsForm {
 		});
 	}
 
-	public updateErrors() {
-		const errors = this.params.getFormErrors();
-		const isValid = Object.keys(errors).length === 0;
-		this.submitButton.disabled = !isValid;
-		this.errorContainer.textContent = isValid ? '' : 'Заполните email и телефон';
-	}
+public updateErrors(errors: FormErrors) {
+	const isValid = !errors.email && !errors.phone;
+	this.submitButton.disabled = !isValid;
+	this.errorContainer.textContent = isValid ? '' : 'Заполните email и телефон';
+}
 
 	public render() {
 		this.container.innerHTML = '';
